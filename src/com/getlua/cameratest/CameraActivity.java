@@ -7,8 +7,6 @@ import java.util.Date;
 
 import junit.framework.Assert;
 import android.app.Activity;
-import android.content.ContentResolver;
-import android.content.ContentUris;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -17,7 +15,6 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
-import android.provider.MediaStore.Images.Media;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.Menu;
@@ -43,6 +40,7 @@ public class CameraActivity extends Activity implements OnClickListener {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_camera);
 
+		// restore the saved camera URI if the activity was killed during the camera intent
 		if(savedInstanceState != null) {
 			if(savedInstanceState.containsKey(KEY_FILE_URI)) {
 				mFileUri = Uri.parse(savedInstanceState.getString(KEY_FILE_URI));
@@ -129,7 +127,8 @@ public class CameraActivity extends Activity implements OnClickListener {
 		case R.id.btn_take_picture:
 			Assert.assertNotNull("file uri not null before firing intent", mFileUri);
 			Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-			intent.putExtra(MediaStore.EXTRA_OUTPUT, mFileUri); // set the image file name
+			//this is the file that the camera app will write to
+			intent.putExtra(MediaStore.EXTRA_OUTPUT, mFileUri); 
 			startActivityForResult(intent, CAPTURE_IMAGE_ACTIVITY_REQUEST_CODE);
 			break;
 		default:
@@ -141,6 +140,12 @@ public class CameraActivity extends Activity implements OnClickListener {
 	protected void onActivityResult(int requestCode, int resultCode, Intent data) {
 		if (requestCode == CAPTURE_IMAGE_ACTIVITY_REQUEST_CODE) {
 			if (resultCode == RESULT_OK) {
+				//In most cases, data should be null because the file location
+				//was passed as an extra to the original intent that started the camera
+				//not all phones comply with the expected behavior and instead
+				//pass back some data.
+				//If no file is specified in the original intent, a thumbnail is passed back
+				//here as data.
 				if(data != null) {
 					if(data.getData() != null) {
 						Log.v(TAG, "intent data: " + data.getData().toString());
@@ -168,6 +173,10 @@ public class CameraActivity extends Activity implements OnClickListener {
 		}
 	}
 
+	/**
+	 * return a file based on the mFileUri that always has the format
+	 * file://xyz/xyz 
+	 */
 	private File getFileFromUri() {
 		if(mFileUri != null) {
 			try {
@@ -192,6 +201,9 @@ public class CameraActivity extends Activity implements OnClickListener {
 		return null;
 	}
 
+	/**
+	 * Prevent bitmap out of memory exceptions by scaling the image
+	 */
 	public static Bitmap decodeSampledBitmapFromFile(File file,
 			int reqWidth, int reqHeight) {
 
@@ -208,6 +220,7 @@ public class CameraActivity extends Activity implements OnClickListener {
 		return BitmapFactory.decodeFile(file.getAbsolutePath(), options);
 	}
 
+	/** Calculate the scaling factor */
 	public static int calculateInSampleSize(BitmapFactory.Options options, int reqWidth, int reqHeight) {
 		// Raw height and width of image
 		final int height = options.outHeight;
